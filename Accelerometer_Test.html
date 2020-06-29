@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<!-- saved from url=(0168)https://googlechrome.github.io/samples/web-bluetooth/notifications.html?service=e95d0753-251d-470a-a062-fa1922dfa9a8&characteristic=e95dca4b-251d-470a-a062-fa1922dfa9a8 -->
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Web Bluetooth / Notifications Sample</title>
+    <script>
+      // Add a global error event listener early on in the page load, to help ensure that browsers
+      // which don't support specific functionality still end up displaying a meaningful message.
+      window.addEventListener('error', function(error) {
+        if (ChromeSamples && ChromeSamples.setStatus) {
+          console.error(error);
+          ChromeSamples.setStatus(error.message + ' (Your browser may not support this feature.)');
+          error.preventDefault();
+        }
+      });
+    </script>
+
+
+<script src="https://cdn.jsdelivr.net/npm/moment@2.24.0/min/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@1.8.0"></script>
+
+    
+    <link rel="icon" href="./Accelerometer_Test_files/icon.png"> 
+    <link rel="stylesheet" href="./Accelerometer_Test_files/main.css"> 
+</head>
+
+<body>
+    <img class="pageIcon" src="./Accelerometer_Test_files/icon.png">
+    <h1>Web Bluetooth / Notifications Sample</h1>
+
+
+
+<form _lpchecked="1">
+  <button id="startNotifications">Start notifications</button>
+  <button id="stopNotifications">Stop notifications</button>
+</form>
+
+
+<p>
+	<div>
+		<canvas id="myChart"></canvas>
+	</div>
+</p>
+
+
+<script>
+  var ChromeSamples = {
+    log: function() {
+      var line = Array.prototype.slice.call(arguments).map(function(argument) {
+        return typeof argument === 'string' ? argument : JSON.stringify(argument);
+      }).join(' ');
+
+      document.querySelector('#log').textContent += line + '\n';
+    },
+
+    clearLog: function() {
+      document.querySelector('#log').textContent = '';
+    },
+
+    setStatus: function(status) {
+      document.querySelector('#status').textContent = status;
+    },
+
+    setContent: function(newContent) {
+      var content = document.querySelector('#content');
+      while(content.hasChildNodes()) {
+        content.removeChild(content.lastChild);
+      }
+      content.appendChild(newContent);
+    }
+  };
+</script>
+
+<h3>Live Output</h3>
+<div id="output" class="output">
+  <div id="content"></div>
+  <div id="status"></div>
+  <pre id="log"></pre>
+</div>
+
+
+<script>
+  if (/Chrome\/(\d+\.\d+.\d+.\d+)/.test(navigator.userAgent)){
+    // Let's log a warning if the sample is not supposed to execute on this
+    // version of Chrome.
+    if (48 > parseInt(RegExp.$1)) {
+      ChromeSamples.setStatus('Warning! Keep in mind this sample has been tested with Chrome ' + 48 + '.');
+    }
+  }
+
+
+  window.onload = function() {
+        var ctx = document.getElementById('myChart').getContext('2d');
+        window.myChart = new Chart(ctx, config);
+        window.xvals = [];
+        window.yvals = [];
+        window.zvals = [];
+    };
+</script>
+
+
+
+
+  
+    
+<script>
+      var myCharacteristic;
+
+function onStartButtonClick() {
+  let serviceUuid = 'e95d0753-251d-470a-a062-fa1922dfa9a8' ;
+  if (serviceUuid.startsWith('0x')) {
+    serviceUuid = parseInt(serviceUuid);
+  }
+
+  let characteristicUuid = 'e95dca4b-251d-470a-a062-fa1922dfa9a8';
+  if (characteristicUuid.startsWith('0x')) {
+    characteristicUuid = parseInt(characteristicUuid);
+  }
+
+  log('Requesting Bluetooth Device...');
+  navigator.bluetooth.requestDevice({filters: [{services: [serviceUuid]}]})
+  .then(device => {
+    log('Connecting to GATT Server...');
+    return device.gatt.connect();
+  })
+  .then(server => {
+    log('Getting Service...');
+    return server.getPrimaryService(serviceUuid);
+  })
+  .then(service => {
+    log('Getting Characteristic...');
+    return service.getCharacteristic(characteristicUuid);
+  })
+  .then(characteristic => {
+    myCharacteristic = characteristic;
+    return myCharacteristic.startNotifications().then(_ => {
+      log('> Notifications started');
+      myCharacteristic.addEventListener('characteristicvaluechanged',
+          handleNotifications);
+    });
+  })
+  .catch(error => {
+    log('Argh! ' + error);
+  });
+}
+
+function onStopButtonClick() {
+  if (myCharacteristic) {
+    myCharacteristic.stopNotifications()
+    .then(_ => {
+      log('> Notifications stopped');
+      myCharacteristic.removeEventListener('characteristicvaluechanged',
+          handleNotifications);
+    })
+    .catch(error => {
+      log('Argh! ' + error);
+    });
+  }
+}
+
+
+
+
+
+var chartColors = {
+	red: 'rgb(255, 99, 132)',
+	orange: 'rgb(255, 159, 64)',
+	yellow: 'rgb(255, 205, 86)',
+	green: 'rgb(75, 192, 192)',
+	blue: 'rgb(54, 162, 235)',
+	purple: 'rgb(153, 102, 255)',
+	grey: 'rgb(201, 203, 207)'
+};
+
+function onRefresh(chart) {
+    let average = (array) => ( (array.length > 0) ? array.reduce((a, b) => a + b) / array.length : 0) ;
+    myChart.config.data.datasets[0].data.push({
+        x: Date.now(),
+        y: average(window.xvals)
+    });
+    myChart.config.data.datasets[1].data.push({
+        x: Date.now(),
+        y: average(window.yvals)
+    });
+    myChart.config.data.datasets[2].data.push({
+        x: Date.now(),
+        y: average(window.zvals)
+    });
+    window.xvals=[];
+    window.yvals=[];
+    window.zvals=[];
+}
+
+var color = Chart.helpers.color;
+var config = {
+	type: 'line',
+	data: {
+		datasets: [
+        {
+                label: 'x',
+                backgroundColor: color(chartColors.red).alpha(0.5).rgbString(),
+                borderColor: chartColors.red,
+                fill: false,
+                cubicInterpolationMode: 'monotone',
+                data: []
+            },
+            {
+                label: 'y',
+                backgroundColor: color(chartColors.green).alpha(0.5).rgbString(),
+                borderColor: chartColors.green,
+                fill: false,
+                cubicInterpolationMode: 'monotone',
+                data: []
+            },
+            {
+                label: 'z',
+                backgroundColor: color(chartColors.blue).alpha(0.5).rgbString(),
+                borderColor: chartColors.blue,
+                fill: false,
+                cubicInterpolationMode: 'monotone',
+                data: []
+            },
+/*
+            ,
+            {
+                label: 'Dataset 2 (cubic interpolation)',
+                backgroundColor: color(chartColors.blue).alpha(0.5).rgbString(),
+                borderColor: chartColors.blue,
+                fill: false,
+                cubicInterpolationMode: 'monotone',
+                data: []
+            }
+*/
+        ]
+	},
+	options: {
+		title: {
+			display: false,
+			text: 'Accelerometer Sample Plot'
+		},
+		scales: {
+			xAxes: [{
+				type: 'realtime',
+				realtime: {
+					duration: 20000,
+					refresh: 250,
+					delay: 1000,
+					onRefresh: onRefresh
+				}
+			}],
+			yAxes: [{
+				scaleLabel: {
+					display: true,
+					labelString: 'Values x, y, z'
+				}
+			}]
+		}   
+        , 
+		tooltips: {
+            enabled: false,
+			mode: 'nearest',
+			intersect: false
+		},
+        legend: {
+            labels: {
+                usePointStyle: true
+            }
+        },
+        /*
+		hover: {
+			mode: 'nearest',
+			intersect: false
+		}
+*/        
+	}
+};
+      
+
+
+
+
+
+
+
+
+
+function handleNotifications(event) {
+  let value = event.target.value;
+  let a = [];
+  // Convert raw data bytes to hex values just for the sake of showing something.
+  // In the "real" world, you'd use data.getUint8, data.getUint16 or even
+  // TextDecoder to process raw data bytes.
+  x = value.getInt16(0, true) / 1000;
+  y = value.getInt16(2, true) / 1000;
+  z = value.getInt16(4, true) / 1000;
+ 
+  //console.log('> ' + x + ', ' + y +', '+ z);
+    window.xvals.push(x);
+    window.yvals.push(y);
+    window.zvals.push(z);
+
+}
+</script>
+    
+  
+
+
+
+<script>
+  document.querySelector('#startNotifications').addEventListener('click', function(event) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    if (isWebBluetoothEnabled()) {
+      ChromeSamples.clearLog();
+      onStartButtonClick();
+    }
+  });
+  document.querySelector('#stopNotifications').addEventListener('click', function(event) {
+    event.stopPropagation();
+    event.preventDefault();
+
+    if (isWebBluetoothEnabled()) {
+      onStopButtonClick();
+    }
+  });
+</script>
+
+<script>
+  log = ChromeSamples.log;
+
+  function isWebBluetoothEnabled() {
+    if (navigator.bluetooth) {
+      return true;
+    } else {
+      ChromeSamples.setStatus('Web Bluetooth API is not available.\n' +
+          'Please make sure the "Experimental Web Platform features" flag is enabled.');
+      return false;
+    }
+  }
+</script>
+
+
+
+</body></html>
