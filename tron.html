@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TRON</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.0.0/p5.js"></script>
+    <script src="https://unpkg.com/p5ble@0.0.6/dist/p5.ble.js" type="text/javascript"></script>
+    <script src=https://MolleIndustria.GitHub.io/p5.play/lib/p5.play.js></script>
+</head>
+ 
+<body>
+
+    <h1>TRON Sample</h1>
+    <script>
+
+    var fill_color;
+    var dot;
+    var txt;
+    var spr; 
+    var clear_bg;
+    const sprite_size = 5;
+    var canvas; 
+    var gameOver = true;
+    let lastTime = Date.now();
+    let accData =[];
+
+    var myCharacteristic;
+    // Micro:Bit Accelerometer service values
+    const serviceUuid = 'e95d0753-251d-470a-a062-fa1922dfa9a8' ;
+    const characteristicUuid = 'e95dca4b-251d-470a-a062-fa1922dfa9a8';
+    let myBLE;
+    let isConnected = false;
+
+    function setup() {
+        canvas = createCanvas(600, 600);
+        textSize(20);
+        textAlign(CENTER, CENTER);
+        fill_color = color(255, 204, 0);
+        bg_color = color(125, 125, 125);
+        background(bg_color);
+        clear_bg = new p5.Image(1, 1);
+        writeColor(clear_bg, 125, 125, 125, 255);
+
+        spr = createSprite(width/2, height/2, sprite_size, sprite_size);
+        spr.shapeColor = fill_color;
+
+        // Create a p5ble class
+        myBLE = new p5ble();
+
+        createDiv();
+
+        // Create a 'Connect' button
+        const connectButton = createButton('Connect');
+        connectButton.mousePressed(connectToBle);
+
+        // Create a 'Disconnect' button
+        const disconnectButton = createButton('Disconnect');
+        disconnectButton.mousePressed(disconnectToBle);
+
+        const startButton = createButton('Start');
+        startButton.mousePressed(startGame);
+
+        const stopButton = createButton('Stop');
+        stopButton.mousePressed(stopGame);
+
+    }
+
+    function startGame() {
+        // STARTS THE GAME
+        canvas.clear();
+        background(bg_color);
+        spr = createSprite(width/2, height/2, sprite_size, sprite_size);
+        spr.shapeColor = fill_color;
+
+        spr.velocity.x = 1;
+        spr.velocity.y = 0;
+        gameOver = false;
+    }
+
+    function stopGame() {
+        gameOver = true;
+        spr.remove();
+    }
+ 
+    function draw() {    
+        //background(125, 125, 125);
+        //text(spr.position,300 ,300);
+        //spr.shapeColor = fill_color;
+        
+        drawSprites();
+        if (!gameOver) {
+            loadPixels();
+
+            if ((spr.position.x+spr.width/2 > width) || (spr.position.x - spr.width/2 < 0)){
+                gameOver = true;
+            }
+            if ((spr.position.y+spr.height/2 > height) || (spr.position.y - spr.height/2 < 0)){
+                gameOver = true;
+            }
+
+            var color_under;
+            if (spr.velocity.x == 1) {
+                color_under = canvas.get(spr.position.x + spr.width/2 + 1 ,spr.position.y);
+            }
+            else if (spr.velocity.x == -1) {
+                color_under = canvas.get(spr.position.x - spr.width/2 - 1 ,spr.position.y);
+            }
+            else if (spr.velocity.y == 1) {
+                color_under = canvas.get(spr.position.x, spr.position.y + spr.height/2 + 1);
+            }
+            else if (spr.velocity.y == -1) {
+                color_under = canvas.get(spr.position.x, spr.position.y - spr.height/2 - 1);
+            }
+            if ( comparePixels( clear_bg.pixels, color_under) ) stopGame();
+            //spr.position.x-spr.width/2, spr.position.y-spr.height/2, spr.width, spr.height);
+        }
+        
+        if (!gameOver) { // manage BLE
+            let currTime = Date.now();
+            let elapsed = currTime - lastTime;
+            //console.log('Elapsed millis: '+ (elapsed));            
+            if (elapsed > 333) {
+                let arrAvg = getAvg(accData);
+                //console.log(accData, accData.length, arrAvg);
+                if (arrAvg < - 0.67) {
+                    changeDirection(spr, 0);
+                }
+                if (arrAvg > 0.67) {
+                    changeDirection(spr, 1);    
+                }
+                accData=[];
+                lastTime = currTime;
+            }
+        }
+    }
+
+
+    function keyPressed() {
+       // console.log('key ' + keyCode);
+        if (keyCode == LEFT_ARROW) 
+            changeDirection(spr, 0);
+        if (keyCode == RIGHT_ARROW)
+            changeDirection(spr, 1);
+    }
+
+    function changeDirection(sprite, direction) {
+        if (direction === 0) {
+           // fill_color = color(255, 204, 0);;
+            if (sprite.velocity.x == 1) {
+                sprite.velocity.x = 0;
+                sprite.velocity.y = -1;
+            }
+            else if (sprite.velocity.x == -1) {
+                sprite.velocity.x = 0;
+                sprite.velocity.y = 1;
+            }
+            else if (sprite.velocity.y == 1) {
+                sprite.velocity.x = 1;
+                sprite.velocity.y = 0;
+            }
+            else if (sprite.velocity.y == -1) {
+                sprite.velocity.x = -1;
+                sprite.velocity.y = 0;
+            }
+        } else if (direction === 1) {
+            //fill_color = 0;
+            if (sprite.velocity.x == 1) {
+                sprite.velocity.x = 0;
+                sprite.velocity.y = 1;
+            }
+            else if (sprite.velocity.x == -1) {
+                sprite.velocity.x = 0;
+                sprite.velocity.y = -1;
+            }
+            else if (sprite.velocity.y == 1) {
+                sprite.velocity.x = -1;
+                sprite.velocity.y = 0;
+            }
+            else if (sprite.velocity.y == -1) {
+                sprite.velocity.x = 1;
+                sprite.velocity.y = 0;
+            }
+        }
+    }
+
+
+    function writeColor(imageIn, red, green, blue, alpha) {
+        for (let y=0;y<imageIn.height;y++) {
+            for (let x=0;x<imageIn.width;x++) {           
+                let index = 4 * (y * imageIn.width + x);
+                imageIn.pixels[index] = red;
+                imageIn.pixels[index + 1] = green;
+                imageIn.pixels[index + 2] = blue;
+                imageIn.pixels[index + 3] = alpha;                                    
+            }
+        }
+        //console.log( imageIn.pixels );
+    }
+
+    function comparePixels( pix1, pix2) {
+        var comparison = false;
+        for (let i=0;i<pix1.length;i++) {
+            if (pix1[i] != pix2[i]) comparison = true;
+        }
+        return comparison;
+    }
+
+    function connectToBle() {
+          // Connect to a device by passing the service UUID
+        myBLE.connect(serviceUuid, gotCharacteristics);
+    }
+
+    function disconnectToBle() {
+        // Disonnect to the device
+        myBLE.disconnect();
+        // Check if myBLE is connected
+        isConnected = myBLE.isConnected();
+    }
+
+    function onDisconnected() {
+        console.log('Device got disconnected.');
+        isConnected = false;
+    }
+
+    // A function that will be called once got characteristics
+    function gotCharacteristics(error, characteristics) {
+        if (error) console.log('error: ', error);
+        console.log('characteristics: ', characteristics);
+        // And a callback function to handle notifications
+        // myBLE.startNotifications(characteristics[0], handleNotifications);
+        // You can also pass in the dataType
+        // Options: 'unit8', 'uint16', 'uint32', 'int8', 'int16', 'int32', 'float32', 'float64', 'string'
+        myBLE.startNotifications(characteristics[0], handleNotifications, 'custom');
+    }
+
+    // A function that will be called once got characteristics
+    function handleNotifications(data) {
+        //const accSamples = 100;
+        //console.log('data: ', data);
+        let value = data;
+        x = value.getInt16(0, true) / 1000;
+        y = value.getInt16(2, true) / 1000;
+        z = value.getInt16(4, true) / 1000;
+        //console.log('> ' + x + ', ' + y +', '+ z);
+
+        //if (accData.length == accSamples)
+        //    accData.shift(); // remove first/oldest element
+        accData.push(x); // add x to end of array
+    }
+
+    function getAvg(array) {
+        const total = array.reduce((acc, c) => acc + c, 0);
+        return total / array.length;
+    }
+
+
+    </script>  
+  
+</body></html>
